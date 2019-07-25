@@ -16,9 +16,17 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             public VariableIdentifier(Symbol symbol, int containingSlot = 0)
             {
-                Debug.Assert(symbol.Kind == SymbolKind.Local || symbol.Kind == SymbolKind.Field || symbol.Kind == SymbolKind.Parameter ||
-                    (symbol as MethodSymbol)?.MethodKind == MethodKind.LocalFunction ||
-                    symbol.Kind == SymbolKind.Property || symbol.Kind == SymbolKind.Event);
+                Debug.Assert(symbol.Kind switch
+                {
+                    SymbolKind.Local => true,
+                    SymbolKind.Parameter => true,
+                    SymbolKind.Field => true,
+                    SymbolKind.Property => true,
+                    SymbolKind.Event => true,
+                    SymbolKind.ErrorType => true,
+                    SymbolKind.Method when symbol is MethodSymbol m && m.MethodKind == MethodKind.LocalFunction => true,
+                    _ => false
+                });
                 Symbol = symbol;
                 ContainingSlot = containingSlot;
             }
@@ -65,7 +73,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                     return true;
                 }
 
-                return Symbol.OriginalDefinition.Equals(other.Symbol.OriginalDefinition);
+                return Symbol.OriginalDefinition.Equals(other.Symbol.OriginalDefinition, SymbolEqualityComparer.ConsiderEverything.CompareKind);
             }
 
             public override bool Equals(object obj)

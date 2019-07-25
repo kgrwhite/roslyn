@@ -372,6 +372,8 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             }
         }
 
+        CodeAnalysis.NullableAnnotation ILocalSymbol.NullableAnnotation => TypeWithAnnotations.ToPublicAnnotation();
+
         bool ILocalSymbol.IsFunctionValue
         {
             get

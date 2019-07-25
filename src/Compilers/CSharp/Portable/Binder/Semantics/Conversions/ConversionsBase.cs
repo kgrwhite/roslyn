@@ -110,6 +110,12 @@ namespace Microsoft.CodeAnalysis.CSharp
                 }
             }
 
+            conversion = GetSwitchExpressionConversion(sourceExpression, destination, ref useSiteDiagnostics);
+            if (conversion.Exists)
+            {
+                return conversion;
+            }
+
             return GetImplicitUserDefinedConversion(sourceExpression, sourceType, destination, ref useSiteDiagnostics);
         }
 
@@ -168,6 +174,32 @@ namespace Microsoft.CodeAnalysis.CSharp
             return ClassifyConversionFromType(source, destination, ref useSiteDiagnostics);
         }
 
+        private static bool TryGetVoidConversion(TypeSymbol source, TypeSymbol destination, out Conversion conversion)
+        {
+            var sourceIsVoid = source?.SpecialType == SpecialType.System_Void;
+            var destIsVoid = destination.SpecialType == SpecialType.System_Void;
+
+            // 'void' is not supposed to be able to convert to or from anything, but in practice,
+            // a lot of code depends on checking whether an expression of type 'void' is convertible to 'void'.
+            // (e.g. for an expression lambda which returns void).
+            // Therefore we allow an identity conversion between 'void' and 'void'.
+            if (sourceIsVoid && destIsVoid)
+            {
+                conversion = Conversion.Identity;
+                return true;
+            }
+
+            // If exactly one of source or destination is of type 'void' then no conversion may exist.
+            if (sourceIsVoid || destIsVoid)
+            {
+                conversion = Conversion.NoConversion;
+                return true;
+            }
+
+            conversion = default;
+            return false;
+        }
+
         /// <summary>
         /// Determines if the source expression is convertible to the destination type via
         /// any conversion: implicit, explicit, user-defined or built-in.
@@ -181,6 +213,11 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             Debug.Assert(sourceExpression != null);
             Debug.Assert((object)destination != null);
+
+            if (TryGetVoidConversion(sourceExpression.Type, destination, out var conversion))
+            {
+                return conversion;
+            }
 
             if (forCast)
             {
@@ -209,6 +246,11 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             Debug.Assert((object)source != null);
             Debug.Assert((object)destination != null);
+
+            if (TryGetVoidConversion(source, destination, out var voidConversion))
+            {
+                return voidConversion;
+            }
 
             if (forCast)
             {
@@ -483,7 +525,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             // "S s = null;" should be allowed. 
             // 
             // We extend the definition of standard implicit conversions to include
-            // all of the implicit conversions that are allowed based on an expression.
+            // all of the implicit conversions that are allowed based on an expression,
+            // with the exception of the switch expression conversion.
 
             Conversion conversion = ClassifyImplicitBuiltInConversionFromExpression(sourceExpression, source, destination, ref useSiteDiagnostics);
             if (conversion.Exists)
@@ -549,7 +592,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             Debug.Assert((object)source != null);
             Debug.Assert((object)destination != null);
 
-            if (source.SpecialType == SpecialType.System_Void || destination.SpecialType == SpecialType.System_Void)
+            if (source.IsVoidType() || destination.IsVoidType())
             {
                 return Conversion.NoConversion;
             }
@@ -574,7 +617,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             Debug.Assert((object)source != null);
             Debug.Assert((object)destination != null);
 
-            if (source.SpecialType == SpecialType.System_Void || destination.SpecialType == SpecialType.System_Void)
+            if (source.IsVoidType() || destination.IsVoidType())
             {
                 return Conversion.NoConversion;
             }
@@ -888,6 +931,28 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             return Conversion.NoConversion;
+        }
+
+        private Conversion GetSwitchExpressionConversion(BoundExpression source, TypeSymbol destination, ref HashSet<DiagnosticInfo> useSiteDiagnostics)
+        {
+            switch (source)
+            {
+                case BoundConvertedSwitchExpression _:
+                    // It has already been subjected to a switch expression conversion.
+                    return Conversion.NoConversion;
+                case BoundUnconvertedSwitchExpression switchExpression:
+                    foreach (var arm in switchExpression.SwitchArms)
+                    {
+                        if (!this.ClassifyConversionFromExpression(arm.Value, destination, ref useSiteDiagnostics).IsImplicit)
+                        {
+                            return Conversion.NoConversion;
+                        }
+                    }
+
+                    return Conversion.SwitchExpression;
+                default:
+                    return Conversion.NoConversion;
+            }
         }
 
         private static Conversion ClassifyNullLiteralConversion(BoundExpression source, TypeSymbol destination)
@@ -1367,8 +1432,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             Debug.Assert((object)type1 != null);
             Debug.Assert((object)type2 != null);
 
-            // Note, when we are paying attention to nullability, we ignore insignificant differences and oblivious mismatch. 
-            // See TypeCompareKind.UnknownNullableModifierMatchesAny and TypeCompareKind.IgnoreInsignificantNullableModifiersDifference
+            // Note, when we are paying attention to nullability, we ignore oblivious mismatch.
+            // See TypeCompareKind.ObliviousNullableModifierMatchesAny
             var compareKind = includeNullability ?
                 TypeCompareKind.AllIgnoreOptions & ~TypeCompareKind.IgnoreNullableModifiersForReferenceTypes :
                 TypeCompareKind.AllIgnoreOptions;
@@ -1434,6 +1499,18 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             return !source.NullableAnnotation.IsAnnotated();
+        }
+
+        /// <summary>
+        /// Returns false if the source does not have an implicit conversion to the destination
+        /// because of either incompatible top level or nested nullability.
+        /// </summary>
+        public bool HasAnyNullabilityImplicitConversion(TypeWithAnnotations source, TypeWithAnnotations destination)
+        {
+            Debug.Assert(IncludeNullability);
+            HashSet<DiagnosticInfo> discardedDiagnostics = null;
+            return HasTopLevelNullabilityImplicitConversion(source, destination) &&
+                ClassifyImplicitConversionFromType(source.Type, destination.Type, ref discardedDiagnostics).Kind != ConversionKind.NoConversion;
         }
 
         public static bool HasIdentityConversionToAny<T>(T type, ArrayBuilder<T> targetTypes)
@@ -2186,9 +2263,15 @@ namespace Microsoft.CodeAnalysis.CSharp
                 return false;
             }
 
-            TypeSymbol argument0 = destinationAgg.TypeArgumentWithDefinitionUseSiteDiagnostics(0, ref useSiteDiagnostics).Type;
+            TypeWithAnnotations elementType = source.ElementTypeWithAnnotations;
+            TypeWithAnnotations argument0 = destinationAgg.TypeArgumentWithDefinitionUseSiteDiagnostics(0, ref useSiteDiagnostics);
 
-            return HasIdentityOrImplicitReferenceConversion(source.ElementType, argument0, ref useSiteDiagnostics);
+            if (IncludeNullability && !HasTopLevelNullabilityImplicitConversion(elementType, argument0))
+            {
+                return false;
+            }
+
+            return HasIdentityOrImplicitReferenceConversion(elementType.Type, argument0.Type, ref useSiteDiagnostics);
         }
 
         private bool HasImplicitReferenceConversion(TypeWithAnnotations source, TypeWithAnnotations destination, ref HashSet<DiagnosticInfo> useSiteDiagnostics)
@@ -2629,6 +2712,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 source.GetAllTypeArguments(sourceTypeArguments, ref useSiteDiagnostics);
                 destination.GetAllTypeArguments(destinationTypeArguments, ref useSiteDiagnostics);
 
+                Debug.Assert(TypeSymbol.Equals(source.OriginalDefinition, destination.OriginalDefinition, TypeCompareKind.AllIgnoreOptions));
                 Debug.Assert(typeParameters.Count == sourceTypeArguments.Count);
                 Debug.Assert(typeParameters.Count == destinationTypeArguments.Count);
 
@@ -2649,6 +2733,19 @@ namespace Microsoft.CodeAnalysis.CSharp
                     switch (typeParameterSymbol.Variance)
                     {
                         case VarianceKind.None:
+                            // System.IEquatable<T> is invariant for back compat reasons (dynamic type checks could start
+                            // to succeed where they previously failed, creating different runtime behavior), but the uses
+                            // require treatment specifically of nullability as contravariant, so we special case the
+                            // behavior here. Normally we use GetWellKnownType for these kinds of checks, but in this
+                            // case we don't want just the canonical IEquatable to be special-cased, we want all definitions
+                            // to be treated as contravariant, in case there are other definitions in metadata that were
+                            // compiled with that expectation.
+                            if (isTypeIEquatable(destination.OriginalDefinition) &&
+                                TypeSymbol.Equals(destinationTypeArgument.Type, sourceTypeArgument.Type, TypeCompareKind.AllNullableIgnoreOptions) &&
+                                HasAnyNullabilityImplicitConversion(destinationTypeArgument, sourceTypeArgument))
+                            {
+                                return true;
+                            }
                             return false;
 
                         case VarianceKind.Out:
@@ -2678,6 +2775,19 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
 
             return true;
+
+            static bool isTypeIEquatable(NamedTypeSymbol type)
+            {
+                return type is
+                {
+                    IsInterface: true,
+                    Name: "IEquatable",
+                    ContainingNamespace: { Name: "System", ContainingNamespace: { IsGlobalNamespace: true } },
+                    ContainingSymbol: { Kind: SymbolKind.Namespace },
+                    TypeParameters: { Length: 1 }
+                };
+            }
+
         }
 
         // Spec 6.1.10
@@ -2801,7 +2911,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             PointerTypeSymbol pd = destination as PointerTypeSymbol;
             PointerTypeSymbol ps = source as PointerTypeSymbol;
-            return (object)pd != null && (object)ps != null && pd.PointedAtType.SpecialType == SpecialType.System_Void;
+            return (object)pd != null && (object)ps != null && pd.PointedAtType.IsVoidType();
         }
 
         private bool HasIdentityOrReferenceConversion(TypeSymbol source, TypeSymbol destination, ref HashSet<DiagnosticInfo> useSiteDiagnostics)

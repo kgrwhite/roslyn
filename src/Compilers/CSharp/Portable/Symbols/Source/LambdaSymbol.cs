@@ -166,7 +166,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
 
         public override bool ReturnsVoid
         {
-            get { return this.ReturnTypeWithAnnotations.HasType && this.ReturnType.SpecialType == SpecialType.System_Void; }
+            get { return this.ReturnTypeWithAnnotations.HasType && this.ReturnType.IsVoidType(); }
         }
 
         public override RefKind RefKind
@@ -178,6 +178,12 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
         {
             get { return _returnType; }
         }
+
+        public override FlowAnalysisAnnotations ReturnTypeFlowAnalysisAnnotations => FlowAnalysisAnnotations.None;
+
+        public override ImmutableHashSet<string> ReturnNotNullIfParameterNotNull => ImmutableHashSet<string>.Empty;
+
+        public override FlowAnalysisAnnotations FlowAnalysisAnnotations => FlowAnalysisAnnotations.None;
 
         // In error recovery and type inference scenarios we do not know the return type
         // until after the body is bound, but the symbol is created before the body
@@ -365,7 +371,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             return result;
         }
 
-        public sealed override bool Equals(object symbol)
+        public sealed override bool Equals(Symbol symbol, TypeCompareKind compareKind)
         {
             if ((object)this == symbol) return true;
 
@@ -373,7 +379,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             return (object)lambda != null
                 && lambda._syntax == _syntax
                 && lambda._refKind == _refKind
-                && TypeSymbol.Equals(lambda.ReturnType, this.ReturnType, TypeCompareKind.ConsiderEverything2)
+                && TypeSymbol.Equals(lambda.ReturnType, this.ReturnType, compareKind)
                 && System.Linq.ImmutableArrayExtensions.SequenceEqual(lambda.ParameterTypesWithAnnotations, this.ParameterTypesWithAnnotations, (p1, p2) => p1.Type.Equals(p2.Type))
                 && Equals(lambda.ContainingSymbol, this.ContainingSymbol);
         }
@@ -396,7 +402,9 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             get { return true; }
         }
 
-        public override ImmutableArray<TypeParameterConstraintClause> GetTypeParameterConstraintClauses(bool early) => ImmutableArray<TypeParameterConstraintClause>.Empty;
+        internal override bool IsDeclaredReadOnly => false;
+
+        public override ImmutableArray<TypeParameterConstraintClause> GetTypeParameterConstraintClauses() => ImmutableArray<TypeParameterConstraintClause>.Empty;
 
         internal override int CalculateLocalSyntaxOffset(int localPosition, SyntaxTree localTree)
         {

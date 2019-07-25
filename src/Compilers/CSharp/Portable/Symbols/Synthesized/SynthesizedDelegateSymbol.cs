@@ -209,7 +209,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
 
             public override bool ReturnsVoid
             {
-                get { return _returnType.SpecialType == SpecialType.System_Void; }
+                get { return _returnType.IsVoidType(); }
             }
 
             public override bool IsAsync
@@ -226,6 +226,10 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             {
                 get { return TypeWithAnnotations.Create(_returnType); }
             }
+
+            public override FlowAnalysisAnnotations ReturnTypeFlowAnalysisAnnotations => FlowAnalysisAnnotations.None;
+
+            public override ImmutableHashSet<string> ReturnNotNullIfParameterNotNull => ImmutableHashSet<string>.Empty;
 
             public override ImmutableArray<TypeWithAnnotations> TypeArgumentsWithAnnotations
             {

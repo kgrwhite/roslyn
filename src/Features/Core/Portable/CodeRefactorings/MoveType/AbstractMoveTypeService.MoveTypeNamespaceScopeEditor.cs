@@ -1,7 +1,6 @@
 ﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
 
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,11 +13,6 @@ namespace Microsoft.CodeAnalysis.CodeRefactorings.MoveType
 
     internal abstract partial class AbstractMoveTypeService<TService, TTypeDeclarationSyntax, TNamespaceDeclarationSyntax, TMemberDeclarationSyntax, TCompilationUnitSyntax>
     {
-        /// <summary>
-        /// Annotation to mark the namespace encapsulating the type that has been moved
-        /// </summary>
-        public static SyntaxAnnotation NamespaceScopeMovedAnnotation = new SyntaxAnnotation(nameof(MoveTypeOperationKind.MoveTypeNamespaceScope));
-
         /// <summary>
         /// Editor that takes a type in a scope and creates a scope beside it. For example, if the type is contained within a namespace 
         /// it will evaluate if the namespace scope needs to be closed and reopened to create a new scope. 

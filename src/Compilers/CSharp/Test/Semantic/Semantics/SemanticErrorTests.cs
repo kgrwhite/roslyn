@@ -2030,40 +2030,42 @@ class C
             var text = @"
 interface I
 {
-    event System.Action E1 { add; } // CS0069 on add
-    event System.Action E2 { remove; } // CS0069 on remove
-    event System.Action E3 { add; remove; } // CS0069 on both (i.e. x 2)
+    event System.Action E1 { add; }
+    event System.Action E2 { remove; }
+    event System.Action E3 { add; remove; }
 }
 ";
-            CreateCompilation(text).VerifyDiagnostics(
-                // (4,30): error CS0069: An event in an interface cannot have add or remove accessors
-                //     event System.Action E1 { add; } // CS0069 on add
-                Diagnostic(ErrorCode.ERR_EventPropertyInInterface, "add"),
-                // (5,30): error CS0069: An event in an interface cannot have add or remove accessors
-                //     event System.Action E2 { remove; } // CS0069 on remove
-                Diagnostic(ErrorCode.ERR_EventPropertyInInterface, "remove"),
-                // (6,30): error CS0069: An event in an interface cannot have add or remove accessors
-                //     event System.Action E3 { add; remove; } // CS0069 on both (i.e. x 2)
-                Diagnostic(ErrorCode.ERR_EventPropertyInInterface, "add"),
-                // (6,35): error CS0069: An event in an interface cannot have add or remove accessors
-                //     event System.Action E3 { add; remove; } // CS0069 on both (i.e. x 2)
-                Diagnostic(ErrorCode.ERR_EventPropertyInInterface, "remove"),
-
-                // CONSIDER: dev10 doesn't report these, but we report them in the parser so they're
-                // hard to suppress.
-
+            CreateCompilation(text, parseOptions: TestOptions.Regular7, targetFramework: TargetFramework.NetStandardLatest).VerifyDiagnostics(
+                // (4,30): error CS8652: The feature 'default interface implementation' is not available in C# 7.0. Please use language version 8.0 or greater.
+                //     event System.Action E1 { add; }
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion7, "add").WithArguments("default interface implementation", "8.0").WithLocation(4, 30),
                 // (4,33): error CS0073: An add or remove accessor must have a body
-                //     event System.Action E1 { add; } // CS0069 on add
-                Diagnostic(ErrorCode.ERR_AddRemoveMustHaveBody, ";"),
+                //     event System.Action E1 { add; }
+                Diagnostic(ErrorCode.ERR_AddRemoveMustHaveBody, ";").WithLocation(4, 33),
+                // (5,30): error CS8652: The feature 'default interface implementation' is not available in C# 7.0. Please use language version 8.0 or greater.
+                //     event System.Action E2 { remove; }
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion7, "remove").WithArguments("default interface implementation", "8.0").WithLocation(5, 30),
                 // (5,36): error CS0073: An add or remove accessor must have a body
-                //     event System.Action E2 { remove; } // CS0069 on remove
-                Diagnostic(ErrorCode.ERR_AddRemoveMustHaveBody, ";"),
+                //     event System.Action E2 { remove; }
+                Diagnostic(ErrorCode.ERR_AddRemoveMustHaveBody, ";").WithLocation(5, 36),
+                // (6,30): error CS8652: The feature 'default interface implementation' is not available in C# 7.0. Please use language version 8.0 or greater.
+                //     event System.Action E3 { add; remove; }
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion7, "add").WithArguments("default interface implementation", "8.0").WithLocation(6, 30),
                 // (6,33): error CS0073: An add or remove accessor must have a body
-                //     event System.Action E3 { add; remove; } // CS0069 on both (i.e. x 2)
-                Diagnostic(ErrorCode.ERR_AddRemoveMustHaveBody, ";"),
+                //     event System.Action E3 { add; remove; }
+                Diagnostic(ErrorCode.ERR_AddRemoveMustHaveBody, ";").WithLocation(6, 33),
+                // (6,35): error CS8652: The feature 'default interface implementation' is not available in C# 7.0. Please use language version 8.0 or greater.
+                //     event System.Action E3 { add; remove; }
+                Diagnostic(ErrorCode.ERR_FeatureNotAvailableInVersion7, "remove").WithArguments("default interface implementation", "8.0").WithLocation(6, 35),
                 // (6,41): error CS0073: An add or remove accessor must have a body
-                //     event System.Action E3 { add; remove; } // CS0069 on both (i.e. x 2)
-                Diagnostic(ErrorCode.ERR_AddRemoveMustHaveBody, ";"));
+                //     event System.Action E3 { add; remove; }
+                Diagnostic(ErrorCode.ERR_AddRemoveMustHaveBody, ";").WithLocation(6, 41),
+                // (4,25): error CS0065: 'I.E1': event property must have both add and remove accessors
+                //     event System.Action E1 { add; }
+                Diagnostic(ErrorCode.ERR_EventNeedsBothAccessors, "E1").WithArguments("I.E1").WithLocation(4, 25),
+                // (5,25): error CS0065: 'I.E2': event property must have both add and remove accessors
+                //     event System.Action E2 { remove; }
+                Diagnostic(ErrorCode.ERR_EventNeedsBothAccessors, "E2").WithArguments("I.E2").WithLocation(5, 25));
         }
 
         [Fact]
@@ -4435,12 +4437,16 @@ class C
 }
 ";
             CreateCompilation(text).VerifyDiagnostics(
-                // (10,26): error CS0155: The type caught or thrown must be derived from System.Exception
-                Diagnostic(ErrorCode.ERR_BadExceptionType, "(string)null"),
-                // (11,26): error CS0155: The type caught or thrown must be derived from System.Exception
-                Diagnostic(ErrorCode.ERR_BadExceptionType, "s"),
-                // (12,26): error CS0155: The type caught or thrown must be derived from System.Exception
-                Diagnostic(ErrorCode.ERR_BadExceptionType, "T"));
+                // (10,26): error CS0029: Cannot implicitly convert type 'string' to 'System.Exception'
+                //         if (False) throw (string)null; //CS0155
+                Diagnostic(ErrorCode.ERR_NoImplicitConv, "(string)null").WithArguments("string", "System.Exception").WithLocation(10, 26),
+                // (11,26): error CS0029: Cannot implicitly convert type 'string' to 'System.Exception'
+                //         if (False) throw s; //CS0155
+                Diagnostic(ErrorCode.ERR_NoImplicitConv, "s").WithArguments("string", "System.Exception").WithLocation(11, 26),
+                // (12,26): error CS0029: Cannot implicitly convert type 'string' to 'System.Exception'
+                //         if (False) throw T; //CS0155
+                Diagnostic(ErrorCode.ERR_NoImplicitConv, "T").WithArguments("string", "System.Exception").WithLocation(12, 26)
+                );
         }
 
         [Fact]
@@ -4460,8 +4466,10 @@ class C
 class D : C { }
 ";
             CreateCompilation(text).VerifyDiagnostics(
-                // (8,26): error CS0155: The type caught or thrown must be derived from System.Exception
-                Diagnostic(ErrorCode.ERR_BadExceptionType, "new C() as D"));
+                // (8,26): error CS0029: Cannot implicitly convert type 'D' to 'System.Exception'
+                //         if (False) throw new C() as D; //CS0155, though always null
+                Diagnostic(ErrorCode.ERR_NoImplicitConv, "new C() as D").WithArguments("D", "System.Exception").WithLocation(8, 26)
+                );
         }
 
         [Fact]
@@ -4486,12 +4494,16 @@ class C
 }
 ";
             CreateCompilation(text).VerifyDiagnostics(
-                // (11,26): error CS0155: The type caught or thrown must be derived from System.Exception
-                Diagnostic(ErrorCode.ERR_BadExceptionType, "default(T)"),
-                // (12,26): error CS0155: The type caught or thrown must be derived from System.Exception
-                Diagnostic(ErrorCode.ERR_BadExceptionType, "default(TC)"),
-                // (13,26): error CS0155: The type caught or thrown must be derived from System.Exception
-                Diagnostic(ErrorCode.ERR_BadExceptionType, "default(TS)"));
+                // (11,26): error CS0029: Cannot implicitly convert type 'T' to 'System.Exception'
+                //         if (False) throw default(T); //CS0155
+                Diagnostic(ErrorCode.ERR_NoImplicitConv, "default(T)").WithArguments("T", "System.Exception").WithLocation(11, 26),
+                // (12,26): error CS0029: Cannot implicitly convert type 'TC' to 'System.Exception'
+                //         if (False) throw default(TC); //CS0155
+                Diagnostic(ErrorCode.ERR_NoImplicitConv, "default(TC)").WithArguments("TC", "System.Exception").WithLocation(12, 26),
+                // (13,26): error CS0029: Cannot implicitly convert type 'TS' to 'System.Exception'
+                //         if (False) throw default(TS); //CS0155
+                Diagnostic(ErrorCode.ERR_NoImplicitConv, "default(TS)").WithArguments("TS", "System.Exception").WithLocation(13, 26)
+                );
         }
 
         [Fact()]
@@ -4513,7 +4525,7 @@ class C
 
 class Implicit
 {
-    public static explicit operator Exception(Implicit i)
+    public static implicit operator Exception(Implicit i)
     {
         return null;
     }
@@ -4527,11 +4539,17 @@ class Explicit
     }
 }
 ";
-            CreateCompilation(text).VerifyDiagnostics(
+            CreateCompilation(text, parseOptions: TestOptions.Regular7_3).VerifyDiagnostics(
                 // (8,20): error CS0155: The type caught or thrown must be derived from System.Exception
                 Diagnostic(ErrorCode.ERR_BadExceptionType, "new Implicit()"),
                 // (8,20): error CS0155: The type caught or thrown must be derived from System.Exception
-                Diagnostic(ErrorCode.ERR_BadExceptionType, "new Explicit()"));
+                Diagnostic(ErrorCode.ERR_BadExceptionType, "new Explicit()")
+                );
+            CreateCompilation(text).VerifyDiagnostics(
+                    // (9,26): error CS0266: Cannot implicitly convert type 'Explicit' to 'System.Exception'. An explicit conversion exists (are you missing a cast?)
+                    //         if (False) throw new Explicit(); //CS0155
+                    Diagnostic(ErrorCode.ERR_NoImplicitConvCast, "new Explicit()").WithArguments("Explicit", "System.Exception").WithLocation(9, 26)
+                );
         }
 
         [Fact]
@@ -4549,9 +4567,10 @@ class C
     }
 }
 ";
-            CreateCompilation(text).VerifyDiagnostics(
+            CreateCompilation(text, parseOptions: TestOptions.Regular7_3).VerifyDiagnostics(
                 // (9,26): error CS0155: The type caught or thrown must be derived from System.Exception
                 Diagnostic(ErrorCode.ERR_BadExceptionType, "d"));
+            CreateCompilation(text).VerifyDiagnostics(); // dynamic conversion to Exception
         }
 
         [WorkItem(542995, "http://vstfdevdiv:8080/DevDiv2/DevDiv/_workitems/edit/542995")]
@@ -9008,7 +9027,7 @@ class C1
 }
 ";
             CreateCompilation(text).
-                VerifyDiagnostics(                
+                VerifyDiagnostics(
                     // (7,30): error CS0266: Cannot implicitly convert type 'double' to 'int'. An explicit conversion exists (are you missing a cast?)
                     //         int[] arr4 = new int[x];// Invalid
                     Diagnostic(ErrorCode.ERR_NoImplicitConvCast, "x").WithArguments("double", "int").WithLocation(7, 30),
@@ -21835,15 +21854,21 @@ static class C
     }
     static void E(this object o) { }
 }";
-            CreateCompilationWithMscorlib40(source, references: new[] { SystemCoreRef }).VerifyDiagnostics(
+            CreateCompilationWithMscorlib40(source, references: new[] { SystemCoreRef }, parseOptions: TestOptions.Regular7_3).VerifyDiagnostics(
                 // (20,9): warning CS1720: Expression will always cause a System.NullReferenceException because the default value of 'object' is null
+                //         default(object).GetHashCode();
                 Diagnostic(ErrorCode.WRN_DotOnDefault, "default(object).GetHashCode").WithArguments("object").WithLocation(20, 9),
                 // (24,9): warning CS1720: Expression will always cause a System.NullReferenceException because the default value of 'T4' is null
+                //         default(T4).GetHashCode();
                 Diagnostic(ErrorCode.WRN_DotOnDefault, "default(T4).GetHashCode").WithArguments("T4").WithLocation(24, 9),
                 // (26,9): warning CS1720: Expression will always cause a System.NullReferenceException because the default value of 'T6' is null
+                //         default(T6).GetHashCode();
                 Diagnostic(ErrorCode.WRN_DotOnDefault, "default(T6).GetHashCode").WithArguments("T6").WithLocation(26, 9),
                 // (28,9): warning CS1720: Expression will always cause a System.NullReferenceException because the default value of 'T6' is null
+                //         default(T6).P = null;
                 Diagnostic(ErrorCode.WRN_DotOnDefault, "default(T6).P").WithArguments("T6").WithLocation(28, 9));
+            CreateCompilationWithMscorlib40(source, references: new[] { SystemCoreRef }, options: TestOptions.ReleaseDll.WithNullableContextOptions(NullableContextOptions.Disable)).VerifyDiagnostics(
+                );
         }
 
         [Fact]
@@ -21890,7 +21915,7 @@ class C
         default(T4)[1] = o;
     }
 }";
-            CreateCompilation(source, options: TestOptions.UnsafeReleaseDll).VerifyDiagnostics(
+            CreateCompilation(source, options: TestOptions.UnsafeReleaseDll, parseOptions: TestOptions.Regular7_3).VerifyDiagnostics(
                 // (23,13): warning CS1720: Expression will always cause a System.NullReferenceException because the default value of 'A' is null
                 Diagnostic(ErrorCode.WRN_DotOnDefault, "default(A)[0]").WithArguments("A").WithLocation(23, 13),
                 // (25,13): warning CS1720: Expression will always cause a System.NullReferenceException because the default value of 'I' is null
@@ -21911,8 +21936,12 @@ class C
                 Diagnostic(ErrorCode.WRN_DotOnDefault, "default(T1)[1]").WithArguments("T1").WithLocation(35, 9),
                 // (37,9): error CS0131: The left-hand side of an assignment must be a variable, property or indexer
                 Diagnostic(ErrorCode.ERR_AssgLvalueExpected, "default(T3)[1]").WithLocation(37, 9), // Incorrect? See CS0131ERR_AssgLvalueExpected03 unit test.
-                                                                                                    // (38,9): warning CS1720: Expression will always cause a System.NullReferenceException because the default value of 'T4' is null
+                // (38,9): warning CS1720: Expression will always cause a System.NullReferenceException because the default value of 'T4' is null
                 Diagnostic(ErrorCode.WRN_DotOnDefault, "default(T4)[1]").WithArguments("T4").WithLocation(38, 9));
+            CreateCompilation(source, options: TestOptions.UnsafeReleaseDll).VerifyDiagnostics(
+                // (37,9): error CS0131: The left-hand side of an assignment must be a variable, property or indexer
+                //         default(T3)[1] = o;
+                Diagnostic(ErrorCode.ERR_AssgLvalueExpected, "default(T3)[1]").WithLocation(37, 9));
         }
 
         [Fact]
@@ -21932,12 +21961,13 @@ class C
     }
 }
 ";
-            CompileAndVerifyWithMscorlib40(source, expectedOutput: "True", references: new[] { SystemCoreRef }).VerifyDiagnostics(
+            CompileAndVerifyWithMscorlib40(source, expectedOutput: "True", references: new[] { SystemCoreRef }, parseOptions: TestOptions.Regular7_3).VerifyDiagnostics(
                 // Do not report the following warning:
                 // (5,34): warning CS1720: Expression will always cause a System.NullReferenceException because the default value of 'string' is null
                 //         System.Console.WriteLine(default(string).IsNull());
                 // Diagnostic(ErrorCode.WRN_DotOnDefault, "default(string).IsNull").WithArguments("string").WithLocation(5, 34)
                 );
+            CompileAndVerifyWithMscorlib40(source, expectedOutput: "True", references: new[] { SystemCoreRef }).VerifyDiagnostics();
         }
 
         [Fact]

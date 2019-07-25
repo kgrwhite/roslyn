@@ -16,6 +16,7 @@ using Microsoft.CodeAnalysis.Editor.Shared;
 using Microsoft.CodeAnalysis.Editor.Shared.Extensions;
 using Microsoft.CodeAnalysis.Editor.Shared.Options;
 using Microsoft.CodeAnalysis.Editor.Shared.Utilities;
+using Microsoft.CodeAnalysis.Host;
 using Microsoft.CodeAnalysis.Internal.Log;
 using Microsoft.CodeAnalysis.PooledObjects;
 using Microsoft.CodeAnalysis.Text;
@@ -24,12 +25,11 @@ using Microsoft.VisualStudio.Language.Intellisense;
 using Microsoft.VisualStudio.Text;
 using Microsoft.VisualStudio.Text.Editor;
 using Roslyn.Utilities;
-
+using static Microsoft.CodeAnalysis.CodeActions.CodeAction;
 using CodeFixGroupKey = System.Tuple<Microsoft.CodeAnalysis.Diagnostics.DiagnosticData, Microsoft.CodeAnalysis.CodeActions.CodeActionPriority>;
 
 namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
 {
-
     internal partial class SuggestedActionsSourceProvider
     {
         private class SuggestedActionsSource : ForegroundThreadAffinitizedObject, ISuggestedActionsSource2
@@ -44,6 +44,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
 
             // mutable state
             private Workspace _workspace;
+            private IWorkspaceStatusService _workspaceStatusService;
             private int _lastSolutionVersionReported;
 
             public event EventHandler<EventArgs> SuggestedActionsChanged;
@@ -67,11 +68,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                 var updateSource = (IDiagnosticUpdateSource)_owner._diagnosticService;
                 updateSource.DiagnosticsUpdated += OnDiagnosticsUpdated;
 
-                if (_registration.Workspace != null)
-                {
-                    _workspace = _registration.Workspace;
-                    _workspace.DocumentActiveContextChanged += OnActiveContextChanged;
-                }
+                RegisterEventsToWorkspace(_registration.Workspace);
 
                 _registration.WorkspaceChanged += OnWorkspaceChanged;
             }
@@ -82,6 +79,11 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                 {
                     var updateSource = (IDiagnosticUpdateSource)_owner._diagnosticService;
                     updateSource.DiagnosticsUpdated -= OnDiagnosticsUpdated;
+                }
+
+                if (_workspaceStatusService != null)
+                {
+                    _workspaceStatusService.StatusChanged -= OnWorkspaceStatusChanged;
                 }
 
                 if (_workspace != null)
@@ -101,6 +103,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
 
                 _owner = null;
                 _workspace = null;
+                _workspaceStatusService = null;
                 _registration = null;
                 _textView = null;
                 _subjectBuffer = null;
@@ -156,6 +159,17 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                 if (IsDisposed)
                 {
                     return null;
+                }
+
+                if (_workspaceStatusService != null)
+                {
+                    // TODO: right now, LightBulb uses IVsThreadedWaitDialog directly rather than new
+                    //       IUIThreadOperationContext. we need to talk to editor team whether we want to
+                    //       update API to pass in OperationContext like any new API, or we use 
+                    //       IWaitIndicator abstraction (which is a thin wrapper on top of IVsThreadedWaitDialog) directly
+                    //       for now, we use the one LB created before calling us. meaning we don't update
+                    //       text on the wait dialog window
+                    _workspaceStatusService.WaitUntilFullyLoadedAsync(cancellationToken).Wait(cancellationToken);
                 }
 
                 using (Logger.LogBlock(FunctionId.SuggestedActions_GetSuggestedActions, cancellationToken))
@@ -299,7 +313,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                     // Only inline if the underlying code action allows it.
                     if (actionWithNestedActions?.CodeAction.IsInlinable == true)
                     {
-                        newActions.AddRange(actionWithNestedActions.NestedActionSet.Actions);
+                        newActions.AddRange(actionWithNestedActions.NestedActionSets.SelectMany(set => set.Actions));
                     }
                     else
                     {
@@ -329,9 +343,9 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                     supportsFeatureService.SupportsCodeFixes(_subjectBuffer) &&
                     requestedActionCategories.Contains(PredefinedSuggestedActionCategoryNames.CodeFix))
                 {
-                    // We only include suppressions if light bulb is asking for everything.
-                    // If the light bulb is only asking for code fixes, then we don't include suppressions.
-                    var includeSuppressionFixes = requestedActionCategories.Contains(PredefinedSuggestedActionCategoryNames.Any);
+                    // Make sure we include the suppression fixes even when the light bulb is only asking for only code fixes.
+                    // See https://github.com/dotnet/roslyn/issues/29589
+                    const bool includeSuppressionFixes = true;
 
                     var fixes = Task.Run(
                         () => _owner._codeFixService.GetFixesAsync(
@@ -413,7 +427,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                 GroupFixes(workspace, fixCollections, map, order, includeSuppressionFixes);
 
                 // Then prioritize between the groups.
-                return PrioritizeFixGroups(map.ToImmutable(), order.ToImmutableAndFree());
+                return PrioritizeFixGroups(map.ToImmutable(), order.ToImmutableAndFree(), workspace);
             }
 
             /// <summary>
@@ -448,8 +462,8 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                         fixCollection.SupportedScopes, fixCollection.FirstDiagnostic,
                         workspace);
 
-                var nonSupressionCodeFixes = fixes.WhereAsArray(f => !(f.Action is TopLevelSuppressionCodeAction));
-                var supressionCodeFixes = fixes.WhereAsArray(f => f.Action is TopLevelSuppressionCodeAction);
+                var nonSupressionCodeFixes = fixes.WhereAsArray(f => !IsTopLevelSuppressionAction(f.Action));
+                var supressionCodeFixes = fixes.WhereAsArray(f => IsTopLevelSuppressionAction(f.Action));
 
                 AddCodeActions(workspace, map, order, fixCollection,
                     getFixAllSuggestedActionSet, nonSupressionCodeFixes);
@@ -463,6 +477,9 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                 }
             }
 
+            private static bool IsTopLevelSuppressionAction(CodeAction action)
+                => action is AbstractConfigurationActionWithNestedActions;
+
             private void AddCodeActions(
                 Workspace workspace, IDictionary<CodeFixGroupKey, IList<SuggestedAction>> map,
                 ArrayBuilder<CodeFixGroupKey> order, CodeFixCollection fixCollection,
@@ -471,33 +488,36 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
             {
                 foreach (var fix in codeFixes)
                 {
-                    SuggestedAction suggestedAction;
-                    if (fix.Action.NestedCodeActions.Length > 0)
+                    var suggestedAction = GetSuggestedAction(fix.Action, fix);
+                    AddFix(fix, suggestedAction, map, order);
+                }
+
+                return;
+
+                // Local functions
+                SuggestedAction GetSuggestedAction(CodeAction action, CodeFix fix)
+                {
+                    if (action.NestedCodeActions.Length > 0)
                     {
-                        var nestedActions = fix.Action.NestedCodeActions.SelectAsArray(
-                            nestedAction => new CodeFixSuggestedAction(
-                                ThreadingContext,
-                                _owner, workspace, _subjectBuffer, fix, fixCollection.Provider,
-                                nestedAction, getFixAllSuggestedActionSet(nestedAction)));
+                        var nestedActions = action.NestedCodeActions.SelectAsArray(
+                            nestedAction => GetSuggestedAction(nestedAction, fix));
 
                         var set = new SuggestedActionSet(categoryName: null,
-                            actions: nestedActions, priority: GetSuggestedActionSetPriority(fix.Action.Priority),
+                            actions: nestedActions, priority: GetSuggestedActionSetPriority(action.Priority),
                             applicableToSpan: fix.PrimaryDiagnostic.Location.SourceSpan.ToSpan());
 
-                        suggestedAction = new SuggestedActionWithNestedActions(
+                        return new SuggestedActionWithNestedActions(
                             ThreadingContext,
                             _owner, workspace, _subjectBuffer,
-                            fixCollection.Provider, fix.Action, set);
+                            fixCollection.Provider, action, set);
                     }
                     else
                     {
-                        suggestedAction = new CodeFixSuggestedAction(
+                        return new CodeFixSuggestedAction(
                             ThreadingContext,
                             _owner, workspace, _subjectBuffer, fix, fixCollection.Provider,
-                            fix.Action, getFixAllSuggestedActionSet(fix.Action));
+                            action, getFixAllSuggestedActionSet(action));
                     }
-
-                    AddFix(fix, suggestedAction, map, order);
                 }
             }
 
@@ -569,27 +589,108 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
             /// the priority of such <see cref="SuggestedActionSet"/>s is set to <see cref="SuggestedActionSetPriority.None"/> so that suppression fixes
             /// always show up last after all other fixes (and refactorings) for the selected line of code.
             /// </remarks>
-            private static ImmutableArray<SuggestedActionSet> PrioritizeFixGroups(
-                ImmutableDictionary<CodeFixGroupKey, IList<SuggestedAction>> map, ImmutableArray<CodeFixGroupKey> order)
+            private ImmutableArray<SuggestedActionSet> PrioritizeFixGroups(
+                ImmutableDictionary<CodeFixGroupKey, IList<SuggestedAction>> map,
+                ImmutableArray<CodeFixGroupKey> order,
+                Workspace workspace)
             {
-                var sets = ArrayBuilder<SuggestedActionSet>.GetInstance();
+                var nonSuppressionSets = ArrayBuilder<SuggestedActionSet>.GetInstance();
+                var suppressionSets = ArrayBuilder<SuggestedActionSet>.GetInstance();
 
                 foreach (var diag in order)
                 {
                     var actions = map[diag];
 
-                    foreach (var group in actions.GroupBy(a => a.Priority))
-                    {
-                        var priority = GetSuggestedActionSetPriority(group.Key);
+                    var nonSuppressionActions = actions.Where(a => !IsTopLevelSuppressionAction(a.CodeAction));
+                    AddSuggestedActionsSet(nonSuppressionActions, diag, nonSuppressionSets);
 
-                        // diagnostic from things like build shouldn't reach here since we don't support LB for those diagnostics
-                        Debug.Assert(diag.Item1.HasTextSpan);
-                        var category = GetFixCategory(diag.Item1.Severity);
-                        sets.Add(new SuggestedActionSet(category, group, priority: priority, applicableToSpan: diag.Item1.TextSpan.ToSpan()));
-                    }
+                    var suppressionActions = actions.Where(a => IsTopLevelSuppressionAction(a.CodeAction));
+                    AddSuggestedActionsSet(suppressionActions, diag, suppressionSets);
                 }
 
-                return sets.ToImmutableAndFree();
+                var sets = nonSuppressionSets.ToImmutableAndFree();
+
+                if (suppressionSets.Count > 0)
+                {
+                    // Wrap the suppression/configuration actions within another top level suggested action
+                    // to avoid clutter in the light bulb menu.
+                    var wrappingSuggestedAction = new SuggestedActionWithNestedActions(
+                        ThreadingContext, _owner, workspace, _subjectBuffer, this,
+                        codeAction: new SolutionChangeAction(EditorFeaturesWpfResources.Configure_or_Suppress_issues, createChangedSolution: _ => null),
+                        nestedActionSets: suppressionSets.ToImmutable());
+
+                    // Combine the spans and the category of each of the nested suggested actions
+                    // to get the span and category for the new top level suggested action.
+                    var (span, category) = CombineSpansAndCategory(suppressionSets);
+                    var wrappingSet = new SuggestedActionSet(
+                        category,
+                        actions: SpecializedCollections.SingletonEnumerable(wrappingSuggestedAction),
+                        title: EditorFeaturesWpfResources.Configure_or_Suppress_issues,
+                        priority: SuggestedActionSetPriority.None,
+                        applicableToSpan: span);
+                    sets = sets.Add(wrappingSet);
+                }
+
+                suppressionSets.Free();
+                return sets;
+
+                // Local functions
+                static (Span? span, string category) CombineSpansAndCategory(IEnumerable<SuggestedActionSet> sets)
+                {
+                    // We are combining the spans and categories of the given set of suggested action sets
+                    // to generate a result span containing the spans of individual suggested action sets and
+                    // a result category which is the maximum severity category amongst the set
+                    int minStart = -1;
+                    int maxEnd = -1;
+                    string category = PredefinedSuggestedActionCategoryNames.CodeFix;
+
+                    foreach (var set in sets)
+                    {
+                        if (set.ApplicableToSpan.HasValue)
+                        {
+                            var currentStart = set.ApplicableToSpan.Value.Start;
+                            var currentEnd = set.ApplicableToSpan.Value.End;
+
+                            if (minStart == -1 || currentStart < minStart)
+                            {
+                                minStart = currentStart;
+                            }
+
+                            if (maxEnd == -1 || currentEnd > maxEnd)
+                            {
+                                maxEnd = currentEnd;
+                            }
+                        }
+
+                        Debug.Assert(set.CategoryName == PredefinedSuggestedActionCategoryNames.CodeFix ||
+                                     set.CategoryName == PredefinedSuggestedActionCategoryNames.ErrorFix);
+
+                        // If this set contains an error fix, then change the result category to ErrorFix
+                        if (set.CategoryName == PredefinedSuggestedActionCategoryNames.ErrorFix)
+                        {
+                            category = PredefinedSuggestedActionCategoryNames.ErrorFix;
+                        }
+                    }
+
+                    var combinedSpan = minStart >= 0 ? new Span(minStart, maxEnd) : (Span?)null;
+                    return (combinedSpan, category);
+                }
+            }
+
+            private static void AddSuggestedActionsSet(
+                IEnumerable<SuggestedAction> actions,
+                CodeFixGroupKey diag,
+                ArrayBuilder<SuggestedActionSet> sets)
+            {
+                foreach (var group in actions.GroupBy(a => a.Priority))
+                {
+                    var priority = GetSuggestedActionSetPriority(group.Key);
+
+                    // diagnostic from things like build shouldn't reach here since we don't support LB for those diagnostics
+                    Debug.Assert(diag.Item1.HasTextSpan);
+                    var category = GetFixCategory(diag.Item1.Severity);
+                    sets.Add(new SuggestedActionSet(category, group, priority: priority, applicableToSpan: diag.Item1.TextSpan.ToSpan()));
+                }
             }
 
             private static string GetFixCategory(DiagnosticSeverity severity)
@@ -878,6 +979,11 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                 // one doesn't need to hold onto workspace in field.
 
                 // remove existing event registration
+                if (_workspaceStatusService != null)
+                {
+                    _workspaceStatusService.StatusChanged -= OnWorkspaceStatusChanged;
+                }
+
                 if (_workspace != null)
                 {
                     _workspace.DocumentActiveContextChanged -= OnActiveContextChanged;
@@ -885,11 +991,23 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
 
                 // REVIEW: why one need to get new workspace from registration? why not just pass in the new workspace?
                 // add new event registration
-                _workspace = _registration.Workspace;
+                RegisterEventsToWorkspace(_registration.Workspace);
+            }
 
-                if (_workspace != null)
+            private void RegisterEventsToWorkspace(Workspace workspace)
+            {
+                _workspace = workspace;
+
+                if (_workspace == null)
                 {
-                    _workspace.DocumentActiveContextChanged += OnActiveContextChanged;
+                    return;
+                }
+
+                _workspace.DocumentActiveContextChanged += OnActiveContextChanged;
+                _workspaceStatusService = workspace.Services.GetService<IWorkspaceStatusService>();
+                if (_workspaceStatusService != null)
+                {
+                    _workspaceStatusService.StatusChanged += OnWorkspaceStatusChanged;
                 }
             }
 
@@ -910,7 +1028,20 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                 OnSuggestedActionsChanged(e.Workspace, e.DocumentId, e.Solution.WorkspaceVersion);
             }
 
-            private void OnSuggestedActionsChanged(Workspace currentWorkspace, DocumentId currentDocumentId, int solutionVersion, DiagnosticsUpdatedArgs args = null)
+            private void OnWorkspaceStatusChanged(object sender, bool fullyLoaded)
+            {
+                var document = _subjectBuffer.AsTextContainer().GetOpenDocumentInCurrentContext();
+                if (document == null)
+                {
+                    // document is already closed
+                    return;
+                }
+
+                // ask editor to refresh lightbulb when workspace solution status is changed
+                this.SuggestedActionsChanged?.Invoke(this, EventArgs.Empty);
+            }
+
+            private void OnSuggestedActionsChanged(Workspace currentWorkspace, DocumentId currentDocumentId, int solutionVersion)
             {
                 // Explicitly hold onto the _subjectBuffer field in a local and use this local in this function to avoid crashes
                 // if this field happens to be cleared by Dispose() below. This is required since this code path involves code
@@ -934,6 +1065,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
                 {
                     return;
                 }
+
                 this.SuggestedActionsChanged?.Invoke(this, EventArgs.Empty);
 
                 Volatile.Write(ref _lastSolutionVersionReported, solutionVersion);
@@ -941,6 +1073,12 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
 
             public async Task<ISuggestedActionCategorySet> GetSuggestedActionCategoriesAsync(ISuggestedActionCategorySet requestedActionCategories, SnapshotSpan range, CancellationToken cancellationToken)
             {
+                if (_workspaceStatusService != null && !await _workspaceStatusService.IsFullyLoadedAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    // never show light bulb if solution is not fully loaded yet
+                    return null;
+                }
+
                 var provider = _owner;
                 using (var asyncToken = _owner.OperationListener.BeginAsyncOperation(nameof(GetSuggestedActionCategoriesAsync)))
                 {
@@ -959,7 +1097,7 @@ namespace Microsoft.CodeAnalysis.Editor.Implementation.Suggestions
 
                         var selection = await GetSpanAsync(range, linkedToken).ConfigureAwait(false);
 
-                        Task<string> refactoringTask = Task.FromResult((string)null);
+                        var refactoringTask = SpecializedTasks.Default<string>();
                         if (selection != null && requestedActionCategories.Contains(PredefinedSuggestedActionCategoryNames.Refactoring))
                         {
                             refactoringTask = Task.Run(

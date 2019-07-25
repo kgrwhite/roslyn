@@ -331,7 +331,11 @@ namespace Microsoft.CodeAnalysis.CSharp
             var conv = (BoundConversion)node;
             if (conv.ExplicitCastInCode) return false;
             NamedTypeSymbol nt = conv.Operand.Type as NamedTypeSymbol;
-            if ((object)nt == null || !nt.IsReferenceType) return false;
+            if ((object)nt == null || !nt.IsReferenceType || nt.IsInterface)
+            {
+                return false;
+            }
+
             string opName = (oldOperatorKind == BinaryOperatorKind.ObjectEqual) ? WellKnownMemberNames.EqualityOperatorName : WellKnownMemberNames.InequalityOperatorName;
             for (var t = nt; (object)t != null; t = t.BaseTypeNoUseSiteDiagnostics)
             {
@@ -860,7 +864,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             return false;
         }
 
-        private void CheckForDeconstructionAssignmentToSelf(BoundTupleLiteral leftTuple, BoundExpression right)
+        private void CheckForDeconstructionAssignmentToSelf(BoundTupleExpression leftTuple, BoundExpression right)
         {
             while (right.Kind == BoundKind.Conversion)
             {
@@ -892,9 +896,9 @@ namespace Microsoft.CodeAnalysis.CSharp
                 var leftArgument = leftArguments[i];
                 var rightArgument = rightTuple.Arguments[i];
 
-                if (leftArgument.Kind == BoundKind.TupleLiteral)
+                if (leftArgument is BoundTupleExpression tupleExpression)
                 {
-                    CheckForDeconstructionAssignmentToSelf((BoundTupleLiteral)leftArgument, rightArgument);
+                    CheckForDeconstructionAssignmentToSelf(tupleExpression, rightArgument);
                 }
                 else if (IsSameLocalOrField(leftArgument, rightArgument))
                 {

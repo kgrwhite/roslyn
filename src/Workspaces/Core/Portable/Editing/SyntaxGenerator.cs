@@ -1435,6 +1435,11 @@ namespace Microsoft.CodeAnalysis.Editing
         public abstract SyntaxNode ThrowExpression(SyntaxNode expression);
 
         /// <summary>
+        /// True if <see cref="ThrowExpression"/> can be used
+        /// </summary>
+        internal abstract bool SupportsThrowExpression();
+
+        /// <summary>
         /// Creates a statement that declares a single local variable.
         /// </summary>
         public abstract SyntaxNode LocalDeclarationStatement(
@@ -2259,6 +2264,7 @@ namespace Microsoft.CodeAnalysis.Editing
         internal abstract bool SupportsPatterns(ParseOptions options);
         internal abstract SyntaxNode IsPatternExpression(SyntaxNode expression, SyntaxNode pattern);
         internal abstract SyntaxNode DeclarationPattern(INamedTypeSymbol type, string name);
+        internal abstract SyntaxNode ConstantPattern(SyntaxNode expression);
 
         #endregion
     }

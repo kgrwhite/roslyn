@@ -50,7 +50,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
                     return RefKind.Out;
                 }
 
-                if (ContainingType.IsReadOnly)
+                if (_containingMethod?.IsEffectivelyReadOnly == true)
                 {
                     return RefKind.In;
                 }
@@ -117,6 +117,11 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
         internal override FlowAnalysisAnnotations FlowAnalysisAnnotations
         {
             get { return FlowAnalysisAnnotations.None; }
+        }
+
+        internal override ImmutableHashSet<string> NotNullIfParameterNotNull
+        {
+            get { return ImmutableHashSet<string>.Empty; }
         }
 
         public override int Ordinal

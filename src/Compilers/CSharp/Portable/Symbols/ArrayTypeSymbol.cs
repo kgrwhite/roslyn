@@ -241,7 +241,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             }
         }
 
-        internal sealed override bool IsReadOnly
+        public sealed override bool IsReadOnly
         {
             get
             {
@@ -334,17 +334,12 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             return visitor.VisitArrayType(this);
         }
 
-        internal override bool Equals(TypeSymbol t2, TypeCompareKind comparison)
+        internal override bool Equals(TypeSymbol t2, TypeCompareKind comparison, IReadOnlyDictionary<TypeParameterSymbol, bool> isValueTypeOverrideOpt = null)
         {
-            return this.Equals(t2 as ArrayTypeSymbol, comparison);
+            return this.Equals(t2 as ArrayTypeSymbol, comparison, isValueTypeOverrideOpt);
         }
 
-        internal bool Equals(ArrayTypeSymbol other)
-        {
-            return Equals(other, TypeCompareKind.ConsiderEverything);
-        }
-
-        private bool Equals(ArrayTypeSymbol other, TypeCompareKind comparison)
+        private bool Equals(ArrayTypeSymbol other, TypeCompareKind comparison, IReadOnlyDictionary<TypeParameterSymbol, bool> isValueTypeOverrideOpt)
         {
             if (ReferenceEquals(this, other))
             {
@@ -352,7 +347,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             }
 
             if ((object)other == null || !other.HasSameShapeAs(this) ||
-                !other.ElementTypeWithAnnotations.Equals(ElementTypeWithAnnotations, comparison))
+                !other.ElementTypeWithAnnotations.Equals(ElementTypeWithAnnotations, comparison, isValueTypeOverrideOpt))
             {
                 return false;
             }
@@ -480,6 +475,11 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
             get { return this.ElementType; }
         }
 
+        CodeAnalysis.NullableAnnotation IArrayTypeSymbol.ElementNullableAnnotation
+        {
+            get => ElementTypeWithAnnotations.ToPublicAnnotation();
+        }
+
         ImmutableArray<CustomModifier> IArrayTypeSymbol.CustomModifiers
         {
             get { return this.ElementTypeWithAnnotations.CustomModifiers; }
@@ -487,7 +487,7 @@ namespace Microsoft.CodeAnalysis.CSharp.Symbols
 
         bool IArrayTypeSymbol.Equals(IArrayTypeSymbol symbol)
         {
-            return this.Equals(symbol as ArrayTypeSymbol);
+            return this.Equals(symbol as ArrayTypeSymbol, SymbolEqualityComparer.Default.CompareKind);
         }
 
         #endregion
