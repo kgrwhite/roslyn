@@ -1,7 +1,7 @@
-﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
-using System.Collections.Generic;
-using System.ComponentModel.Composition;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,12 +15,10 @@ using Microsoft.VisualStudio.LiveShare.LanguageServices;
 
 namespace Microsoft.VisualStudio.LanguageServices.LiveShare
 {
-    [ExportLspRequestHandler(LiveShareConstants.RoslynContractName, Methods.TextDocumentRenameName)]
     internal class RenameHandler : ILspRequestHandler<RenameParams, WorkspaceEdit, Solution>
     {
         private readonly IThreadingContext _threadingContext;
 
-        [ImportingConstructor]
         public RenameHandler(IThreadingContext threadingContext)
         {
             _threadingContext = threadingContext;
@@ -54,7 +52,7 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare
                 var solutionChanges = newSolution.GetChanges(solution);
                 var changedDocuments = solutionChanges
                     .GetProjectChanges()
-                    .SelectMany(p => p.GetChangedDocuments());
+                    .SelectMany(p => p.GetChangedDocuments(onlyGetDocumentsWithTextChanges: true));
 
                 var documentEdits = new ArrayBuilder<TextDocumentEdit>();
                 foreach (var docId in changedDocuments)

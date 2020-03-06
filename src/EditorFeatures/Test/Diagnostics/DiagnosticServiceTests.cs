@@ -1,4 +1,6 @@
-﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System;
 using System.Collections.Immutable;
@@ -23,10 +25,10 @@ namespace Microsoft.CodeAnalysis.Editor.UnitTests.Diagnostics
             var mutex = new ManualResetEvent(false);
             var document = workspace.CurrentSolution.AddProject("TestProject", "TestProject", LanguageNames.CSharp).AddDocument("TestDocument", string.Empty);
 
-                var source = new TestDiagnosticUpdateSource(false, null);
-                var diagnosticService = new DiagnosticService(
-                    AsynchronousOperationListenerProvider.NullProvider, Array.Empty<Lazy<IEventListener, EventListenerMetadata>>());
-                diagnosticService.Register(source);
+            var source = new TestDiagnosticUpdateSource(false, null);
+            var diagnosticService = new DiagnosticService(
+                AsynchronousOperationListenerProvider.NullProvider, Array.Empty<Lazy<IEventListener, EventListenerMetadata>>());
+            diagnosticService.Register(source);
 
             diagnosticService.DiagnosticsUpdated += (s, o) => { mutex.Set(); };
 
@@ -54,10 +56,10 @@ namespace Microsoft.CodeAnalysis.Editor.UnitTests.Diagnostics
             var document = workspace.CurrentSolution.AddProject("TestProject", "TestProject", LanguageNames.CSharp).AddDocument("TestDocument", string.Empty);
             var document2 = document.Project.AddDocument("TestDocument2", string.Empty);
 
-                var source = new TestDiagnosticUpdateSource(false, null);
-                var diagnosticService = new DiagnosticService(
-                    AsynchronousOperationListenerProvider.NullProvider, Array.Empty<Lazy<IEventListener, EventListenerMetadata>>());
-                diagnosticService.Register(source);
+            var source = new TestDiagnosticUpdateSource(false, null);
+            var diagnosticService = new DiagnosticService(
+                AsynchronousOperationListenerProvider.NullProvider, Array.Empty<Lazy<IEventListener, EventListenerMetadata>>());
+            diagnosticService.Register(source);
 
             diagnosticService.DiagnosticsUpdated += (s, o) => { mutex.Set(); };
 
@@ -97,8 +99,8 @@ namespace Microsoft.CodeAnalysis.Editor.UnitTests.Diagnostics
             var document = workspace.CurrentSolution.AddProject("TestProject", "TestProject", LanguageNames.CSharp).AddDocument("TestDocument", string.Empty);
             var document2 = document.Project.AddDocument("TestDocument2", string.Empty);
 
-                var diagnosticService = new DiagnosticService(
-                    AsynchronousOperationListenerProvider.NullProvider, Array.Empty<Lazy<IEventListener, EventListenerMetadata>>());
+            var diagnosticService = new DiagnosticService(
+                AsynchronousOperationListenerProvider.NullProvider, Array.Empty<Lazy<IEventListener, EventListenerMetadata>>());
 
             var source1 = new TestDiagnosticUpdateSource(support: false, diagnosticData: null);
             diagnosticService.Register(source1);
@@ -150,14 +152,14 @@ namespace Microsoft.CodeAnalysis.Editor.UnitTests.Diagnostics
             }
         }
 
-        private static DiagnosticData RaiseDiagnosticEvent(ManualResetEvent set, TestDiagnosticUpdateSource source, TestWorkspace workspace, ProjectId project, DocumentId document, object id)
+        private static DiagnosticData RaiseDiagnosticEvent(ManualResetEvent set, TestDiagnosticUpdateSource source, TestWorkspace workspace, ProjectId projectId, DocumentId documentId, object id)
         {
             set.Reset();
 
-            var diagnostic = CreateDiagnosticData(project, document);
+            var diagnostic = CreateDiagnosticData(projectId, documentId);
 
             source.RaiseDiagnosticsUpdatedEvent(
-                DiagnosticsUpdatedArgs.DiagnosticsCreated(id, workspace, workspace.CurrentSolution, project, document, ImmutableArray.Create(diagnostic)));
+                DiagnosticsUpdatedArgs.DiagnosticsCreated(id, workspace, workspace.CurrentSolution, projectId, documentId, ImmutableArray.Create(diagnostic)));
 
             set.WaitOne();
 

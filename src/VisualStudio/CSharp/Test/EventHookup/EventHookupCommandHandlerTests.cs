@@ -1,7 +1,10 @@
-﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using Microsoft.CodeAnalysis.CodeStyle;
 using Microsoft.CodeAnalysis.Options;
 using Microsoft.CodeAnalysis.Test.Utilities;
@@ -28,7 +31,7 @@ class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -52,7 +55,7 @@ class D
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("Local_MyEvent;");
+            testState.AssertShowing("Local_MyEvent");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -81,7 +84,7 @@ class E
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("Cfield_MyEvent;");
+            testState.AssertShowing("Cfield_MyEvent");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -138,7 +141,7 @@ class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent1;");
+            testState.AssertShowing("C_MyEvent1");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -162,7 +165,7 @@ class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent1;");
+            testState.AssertShowing("C_MyEvent1");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -182,7 +185,7 @@ class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent1;");
+            testState.AssertShowing("C_MyEvent1");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -202,7 +205,7 @@ class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -220,11 +223,11 @@ class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
 
             testState.SendTypeChar(' ');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -242,7 +245,7 @@ class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
 
             testState.SendTypeChar('d');
             await testState.WaitForAsynchronousOperationsAsync();
@@ -264,7 +267,7 @@ class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
 
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
@@ -286,15 +289,15 @@ class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
 
             testState.SendTypeChar(' ');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
 
             testState.SendLeftKey();
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
 
             testState.SendLeftKey();
             await testState.WaitForAsynchronousOperationsAsync();
@@ -317,11 +320,11 @@ class C
 
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
 
             testState.SendTypeChar(' ');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent;");
+            testState.AssertShowing("C_MyEvent");
 
             testState.SendBackspace();
             await testState.WaitForAsynchronousOperationsAsync();
@@ -718,7 +721,7 @@ public partial class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent1;");
+            testState.AssertShowing("C_MyEvent1");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -740,7 +743,7 @@ class Program : Base
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("Console_CancelKeyPress1;");
+            testState.AssertShowing("Console_CancelKeyPress1");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -759,7 +762,7 @@ class C
             using var testState = EventHookupTestState.CreateTestState(markup);
             testState.SendTypeChar('=');
             await testState.WaitForAsynchronousOperationsAsync();
-            testState.AssertShowing("C_MyEvent1;");
+            testState.AssertShowing("C_MyEvent1");
         }
 
         [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
@@ -898,6 +901,59 @@ class C
     }
 
     private void C_MyEvent()
+    {
+        throw new System.NotImplementedException();
+    }
+}";
+            testState.AssertCodeIs(expectedCode);
+        }
+
+        [WpfFact, Trait(Traits.Feature, Traits.Features.EventHookup)]
+        public async Task EventHookupRemovesInaccessibleAttributes()
+        {
+            var workspaceXml = @"
+<Workspace>
+    <Project Language=""C#"" AssemblyName=""A"" CommonReferences=""true"">
+        <Document>
+using System;
+
+public static class C
+{
+    public static event DelegateType E;
+
+    public delegate void DelegateType([ShouldBeRemovedInternalAttribute] object o);
+}
+
+internal class ShouldBeRemovedInternalAttribute : Attribute { }
+        </Document>
+    </Project>
+    <Project Language=""C#"" CommonReferences=""true"">
+        <ProjectReference>A</ProjectReference>
+        <Document>
+class D
+{
+    void M()
+    {
+        C.E +$$
+    }
+}</Document>
+    </Project>
+</Workspace>";
+
+            using var testState = new EventHookupTestState(XElement.Parse(workspaceXml), options: null);
+            testState.SendTypeChar('=');
+            testState.SendTab();
+            await testState.WaitForAsynchronousOperationsAsync();
+
+            var expectedCode = @"
+class D
+{
+    void M()
+    {
+        C.E += C_E;
+    }
+
+    private void C_E(object o)
     {
         throw new System.NotImplementedException();
     }

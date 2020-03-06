@@ -1,4 +1,6 @@
-﻿' Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+﻿' Licensed to the .NET Foundation under one or more agreements.
+' The .NET Foundation licenses this file to you under the MIT license.
+' See the LICENSE file in the project root for more information.
 
 Imports System.Collections.Immutable
 Imports System.IO
@@ -1500,21 +1502,21 @@ BC2014: the value '_' is invalid for option 'RootNamespace'
 
             Dim arrayType = comp.CreateArrayTypeSymbol(elementType)
             Assert.Equal(1, arrayType.Rank)
-            Assert.Equal(CodeAnalysis.NullableAnnotation.NotApplicable, arrayType.ElementNullableAnnotation)
+            Assert.Equal(CodeAnalysis.NullableAnnotation.None, arrayType.ElementNullableAnnotation)
 
             Assert.Throws(Of ArgumentException)(Function() comp.CreateArrayTypeSymbol(elementType, Nothing))
             Assert.Throws(Of ArgumentException)(Function() comp.CreateArrayTypeSymbol(elementType, 0))
 
             arrayType = comp.CreateArrayTypeSymbol(elementType, 1, Nothing)
             Assert.Equal(1, arrayType.Rank)
-            Assert.Equal(CodeAnalysis.NullableAnnotation.NotApplicable, arrayType.ElementNullableAnnotation)
+            Assert.Equal(CodeAnalysis.NullableAnnotation.None, arrayType.ElementNullableAnnotation)
 
             Assert.Throws(Of ArgumentException)(Function() comp.CreateArrayTypeSymbol(elementType, rank:=Nothing))
             Assert.Throws(Of ArgumentException)(Function() comp.CreateArrayTypeSymbol(elementType, rank:=0))
 
             arrayType = comp.CreateArrayTypeSymbol(elementType, elementNullableAnnotation:=Nothing)
             Assert.Equal(1, arrayType.Rank)
-            Assert.Equal(CodeAnalysis.NullableAnnotation.NotApplicable, arrayType.ElementNullableAnnotation)
+            Assert.Equal(CodeAnalysis.NullableAnnotation.None, arrayType.ElementNullableAnnotation)
         End Sub
 
         <Fact()>
@@ -1523,12 +1525,11 @@ BC2014: the value '_' is invalid for option 'RootNamespace'
             Dim comp = DirectCast(VisualBasicCompilation.Create(""), Compilation)
             Dim elementType = comp.GetSpecialType(SpecialType.System_Object)
 
-            Assert.Equal(CodeAnalysis.NullableAnnotation.NotApplicable, comp.CreateArrayTypeSymbol(elementType).ElementNullableAnnotation)
-            Assert.Equal(CodeAnalysis.NullableAnnotation.NotApplicable, comp.CreateArrayTypeSymbol(elementType, elementNullableAnnotation:=Nothing).ElementNullableAnnotation)
-            Assert.Equal(CodeAnalysis.NullableAnnotation.NotApplicable, comp.CreateArrayTypeSymbol(elementType, elementNullableAnnotation:=CodeAnalysis.NullableAnnotation.NotApplicable).ElementNullableAnnotation)
-            Assert.Equal(CodeAnalysis.NullableAnnotation.NotApplicable, comp.CreateArrayTypeSymbol(elementType, elementNullableAnnotation:=CodeAnalysis.NullableAnnotation.Disabled).ElementNullableAnnotation)
-            Assert.Equal(CodeAnalysis.NullableAnnotation.NotApplicable, comp.CreateArrayTypeSymbol(elementType, elementNullableAnnotation:=CodeAnalysis.NullableAnnotation.NotAnnotated).ElementNullableAnnotation)
-            Assert.Equal(CodeAnalysis.NullableAnnotation.NotApplicable, comp.CreateArrayTypeSymbol(elementType, elementNullableAnnotation:=CodeAnalysis.NullableAnnotation.Annotated).ElementNullableAnnotation)
+            Assert.Equal(CodeAnalysis.NullableAnnotation.None, comp.CreateArrayTypeSymbol(elementType).ElementNullableAnnotation)
+            Assert.Equal(CodeAnalysis.NullableAnnotation.None, comp.CreateArrayTypeSymbol(elementType, elementNullableAnnotation:=Nothing).ElementNullableAnnotation)
+            Assert.Equal(CodeAnalysis.NullableAnnotation.None, comp.CreateArrayTypeSymbol(elementType, elementNullableAnnotation:=CodeAnalysis.NullableAnnotation.None).ElementNullableAnnotation)
+            Assert.Equal(CodeAnalysis.NullableAnnotation.None, comp.CreateArrayTypeSymbol(elementType, elementNullableAnnotation:=CodeAnalysis.NullableAnnotation.NotAnnotated).ElementNullableAnnotation)
+            Assert.Equal(CodeAnalysis.NullableAnnotation.None, comp.CreateArrayTypeSymbol(elementType, elementNullableAnnotation:=CodeAnalysis.NullableAnnotation.Annotated).ElementNullableAnnotation)
         End Sub
 
         <Fact()>
@@ -1706,13 +1707,13 @@ BC2014: the value '_' is invalid for option 'RootNamespace'
 
             Dim type = comp.CreateAnonymousTypeSymbol(memberTypes, memberNames)
             Assert.Equal("<anonymous type: Key P As System.Object, Key Q As System.String>", type.ToTestDisplayString())
-            AssertEx.Equal({CodeAnalysis.NullableAnnotation.NotApplicable, CodeAnalysis.NullableAnnotation.NotApplicable}, GetAnonymousTypeNullableAnnotations(type))
+            AssertEx.Equal({CodeAnalysis.NullableAnnotation.None, CodeAnalysis.NullableAnnotation.None}, GetAnonymousTypeNullableAnnotations(type))
 
             Assert.Throws(Of ArgumentException)(Function() comp.CreateAnonymousTypeSymbol(memberTypes, memberNames, memberNullableAnnotations:=ImmutableArray.Create(CodeAnalysis.NullableAnnotation.NotAnnotated)))
 
             type = comp.CreateAnonymousTypeSymbol(memberTypes, memberNames, memberNullableAnnotations:=ImmutableArray.Create(CodeAnalysis.NullableAnnotation.NotAnnotated, CodeAnalysis.NullableAnnotation.Annotated))
             Assert.Equal("<anonymous type: Key P As System.Object, Key Q As System.String>", type.ToTestDisplayString())
-            AssertEx.Equal({CodeAnalysis.NullableAnnotation.NotApplicable, CodeAnalysis.NullableAnnotation.NotApplicable}, GetAnonymousTypeNullableAnnotations(type))
+            AssertEx.Equal({CodeAnalysis.NullableAnnotation.None, CodeAnalysis.NullableAnnotation.None}, GetAnonymousTypeNullableAnnotations(type))
         End Sub
 
         Private Shared Function GetAnonymousTypeNullableAnnotations(type As ITypeSymbol) As ImmutableArray(Of CodeAnalysis.NullableAnnotation)
@@ -1734,14 +1735,14 @@ End Class"
 
             Dim type = genericType.Construct(typeArguments, Nothing)
             Assert.Equal("Pair(Of System.Object, System.String)", type.ToTestDisplayString())
-            AssertEx.Equal({CodeAnalysis.NullableAnnotation.NotApplicable, CodeAnalysis.NullableAnnotation.NotApplicable}, type.TypeArgumentNullableAnnotations)
+            AssertEx.Equal({CodeAnalysis.NullableAnnotation.None, CodeAnalysis.NullableAnnotation.None}, type.TypeArgumentNullableAnnotations)
 
             Assert.Throws(Of ArgumentException)(Function() genericType.Construct(typeArguments, ImmutableArray(Of CodeAnalysis.NullableAnnotation).Empty))
             Assert.Throws(Of ArgumentException)(Function() genericType.Construct(ImmutableArray.Create(Of ITypeSymbol)(Nothing, Nothing), Nothing))
 
             type = genericType.Construct(typeArguments, ImmutableArray.Create(CodeAnalysis.NullableAnnotation.Annotated, CodeAnalysis.NullableAnnotation.NotAnnotated))
             Assert.Equal("Pair(Of System.Object, System.String)", type.ToTestDisplayString())
-            AssertEx.Equal({CodeAnalysis.NullableAnnotation.NotApplicable, CodeAnalysis.NullableAnnotation.NotApplicable}, type.TypeArgumentNullableAnnotations)
+            AssertEx.Equal({CodeAnalysis.NullableAnnotation.None, CodeAnalysis.NullableAnnotation.None}, type.TypeArgumentNullableAnnotations)
 
             ' Type arguments from C#.
             comp = CreateCSharpCompilation("")
@@ -1766,14 +1767,14 @@ End Class"
 
             Dim type = genericMethod.Construct(typeArguments, Nothing)
             Assert.Equal("Sub Program.M(Of System.Object, System.String)()", type.ToTestDisplayString())
-            AssertEx.Equal({CodeAnalysis.NullableAnnotation.NotApplicable, CodeAnalysis.NullableAnnotation.NotApplicable}, type.TypeArgumentNullableAnnotations)
+            AssertEx.Equal({CodeAnalysis.NullableAnnotation.None, CodeAnalysis.NullableAnnotation.None}, type.TypeArgumentNullableAnnotations)
 
             Assert.Throws(Of ArgumentException)(Function() genericMethod.Construct(typeArguments, ImmutableArray(Of CodeAnalysis.NullableAnnotation).Empty))
             Assert.Throws(Of ArgumentException)(Function() genericMethod.Construct(ImmutableArray.Create(Of ITypeSymbol)(Nothing, Nothing), Nothing))
 
             type = genericMethod.Construct(typeArguments, ImmutableArray.Create(CodeAnalysis.NullableAnnotation.Annotated, CodeAnalysis.NullableAnnotation.NotAnnotated))
             Assert.Equal("Sub Program.M(Of System.Object, System.String)()", type.ToTestDisplayString())
-            AssertEx.Equal({CodeAnalysis.NullableAnnotation.NotApplicable, CodeAnalysis.NullableAnnotation.NotApplicable}, type.TypeArgumentNullableAnnotations)
+            AssertEx.Equal({CodeAnalysis.NullableAnnotation.None, CodeAnalysis.NullableAnnotation.None}, type.TypeArgumentNullableAnnotations)
 
             ' Type arguments from C#.
             comp = CreateCSharpCompilation("")
@@ -2256,6 +2257,19 @@ End Class
             comp2 = comp.AddReferences(metadata)
             Dim reference2 = comp2.GetMetadataReference(assemblySmb)
             Assert.NotNull(reference2)
+        End Sub
+
+        <WorkItem(40466, "https://github.com/dotnet/roslyn/issues/40466")>
+        <Fact>
+        Public Sub GetMetadataReference_CSharpSymbols()
+            Dim comp As Compilation = CreateCompilation("")
+
+            Dim csComp = CreateCSharpCompilation("", referencedAssemblies:=TargetFrameworkUtil.GetReferences(TargetFramework.Standard))
+            Dim assembly = csComp.GetBoundReferenceManager().GetReferencedAssemblies().First().Value
+
+            Assert.Null(comp.GetMetadataReference(DirectCast(assembly.GetISymbol(), IAssemblySymbol)))
+            Assert.Null(comp.GetMetadataReference(csComp.Assembly))
+            Assert.Null(comp.GetMetadataReference(Nothing))
         End Sub
 
 

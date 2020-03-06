@@ -1,4 +1,6 @@
-﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 namespace Microsoft.VisualStudio.LanguageServices.LiveShare
 {
@@ -9,5 +11,9 @@ namespace Microsoft.VisualStudio.LanguageServices.LiveShare
         // The service name for an LSP server implemented using Roslyn designed to be used with the LSP SDK client
         public const string RoslynLSPSDKContractName = "RoslynLSPSDK";
         public const string TypeScriptLanguageName = "TypeScript";
+
+        public const string CSharpContractName = "CSharp";
+        public const string VisualBasicContractName = "VisualBasic";
+        public const string TypeScriptContractName = "TypeScript";
     }
 }

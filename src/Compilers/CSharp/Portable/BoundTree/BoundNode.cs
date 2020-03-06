@@ -1,4 +1,6 @@
-﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System;
 using System.Collections.Immutable;
@@ -29,8 +31,8 @@ namespace Microsoft.CodeAnalysis.CSharp
             TopLevelFlowStateMaybeNull = 1 << 3,
             TopLevelNotAnnotated = 1 << 4,
             TopLevelAnnotated = 1 << 5,
-            TopLevelDisabled = TopLevelAnnotated | TopLevelNotAnnotated,
-            TopLevelAnnotationMask = TopLevelDisabled,
+            TopLevelNone = TopLevelAnnotated | TopLevelNotAnnotated,
+            TopLevelAnnotationMask = TopLevelNone,
 
             /// <summary>
             /// Captures the fact that consumers of the node already checked the state of the WasCompilerGenerated bit.
@@ -143,7 +145,9 @@ namespace Microsoft.CodeAnalysis.CSharp
 
             Debug.Assert(original is BoundExpression || !original.IsSuppressed);
             this.IsSuppressed = original.IsSuppressed;
+#if DEBUG
             this.WasConverted = original.WasConverted;
+#endif
         }
 
         /// <remarks>
@@ -199,7 +203,7 @@ namespace Microsoft.CodeAnalysis.CSharp
         /// <summary>
         /// Top level nullability for the node. This should not be used by flow analysis.
         /// </summary>
-        [DebuggerHidden]
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
         protected NullabilityInfo TopLevelNullability
         {
             get
@@ -209,7 +213,7 @@ namespace Microsoft.CodeAnalysis.CSharp
 #endif
 
                 // This is broken out into a separate property so the debugger can display the
-                // top level nullability without setting the _attributes flag and interferring
+                // top level nullability without setting the _attributes flag and interfering
                 // with the normal operation of tests.
                 return TopLevelNullabilityCore;
             }
@@ -225,7 +229,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 {
                     CodeAnalysis.NullableAnnotation.Annotated => BoundNodeAttributes.TopLevelAnnotated,
                     CodeAnalysis.NullableAnnotation.NotAnnotated => BoundNodeAttributes.TopLevelNotAnnotated,
-                    CodeAnalysis.NullableAnnotation.Disabled => BoundNodeAttributes.TopLevelDisabled,
+                    CodeAnalysis.NullableAnnotation.None => BoundNodeAttributes.TopLevelNone,
                     var a => throw ExceptionUtilities.UnexpectedValue(a),
                 };
 
@@ -262,7 +266,7 @@ namespace Microsoft.CodeAnalysis.CSharp
                 {
                     BoundNodeAttributes.TopLevelAnnotated => CodeAnalysis.NullableAnnotation.Annotated,
                     BoundNodeAttributes.TopLevelNotAnnotated => CodeAnalysis.NullableAnnotation.NotAnnotated,
-                    BoundNodeAttributes.TopLevelDisabled => CodeAnalysis.NullableAnnotation.Disabled,
+                    BoundNodeAttributes.TopLevelNone => CodeAnalysis.NullableAnnotation.None,
                     var mask => throw ExceptionUtilities.UnexpectedValue(mask)
                 };
 
@@ -288,6 +292,7 @@ namespace Microsoft.CodeAnalysis.CSharp
             }
         }
 
+#if DEBUG
         /// <summary>
         /// WasConverted flag is used for debugging purposes only (not to direct the behavior of semantic analysis).
         /// It is used on BoundLocal and BoundParameter to check that every such rvalue that has not been converted to
@@ -297,23 +302,18 @@ namespace Microsoft.CodeAnalysis.CSharp
         {
             get
             {
-#if DEBUG
                 return (_attributes & BoundNodeAttributes.WasConverted) != 0;
-#else
-                return true;
-#endif
             }
             protected set
             {
-#if DEBUG
                 Debug.Assert((_attributes & BoundNodeAttributes.WasConverted) == 0, "WasConverted flag should not be set twice or reset");
                 if (value)
                 {
                     _attributes |= BoundNodeAttributes.WasConverted;
                 }
-#endif
             }
         }
+#endif
 
         public BoundKind Kind
         {

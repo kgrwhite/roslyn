@@ -1,4 +1,6 @@
-﻿// Copyright (c) Microsoft.  All Rights Reserved.  Licensed under the Apache License, Version 2.0.  See License.txt in the project root for license information.
+﻿// Licensed to the .NET Foundation under one or more agreements.
+// The .NET Foundation licenses this file to you under the MIT license.
+// See the LICENSE file in the project root for more information.
 
 using System.Collections.Generic;
 using System.Linq;
@@ -113,7 +115,7 @@ namespace Microsoft.CodeAnalysis.CSharp.CodeGeneration
                         AttributeGenerator.GenerateAttributeLists(@event.GetAttributes(), options),
                         GenerateModifiers(@event, destination, options),
                         SyntaxFactory.VariableDeclaration(
-                            @event.Type.WithNullability(@event.NullableAnnotation).GenerateTypeSyntax(),
+                            @event.Type.GenerateTypeSyntax(),
                             SyntaxFactory.SingletonSeparatedList(SyntaxFactory.VariableDeclarator(@event.Name.ToIdentifierToken()))))));
         }
 
@@ -125,7 +127,7 @@ namespace Microsoft.CodeAnalysis.CSharp.CodeGeneration
             return AddFormatterAndCodeGeneratorAnnotationsTo(SyntaxFactory.EventDeclaration(
                 attributeLists: AttributeGenerator.GenerateAttributeLists(@event.GetAttributes(), options),
                 modifiers: GenerateModifiers(@event, destination, options),
-                type: @event.Type.WithNullability(@event.NullableAnnotation).GenerateTypeSyntax(),
+                type: @event.Type.GenerateTypeSyntax(),
                 explicitInterfaceSpecifier: explicitInterfaceSpecifier,
                 identifier: @event.Name.ToIdentifierToken(),
                 accessorList: GenerateAccessorList(@event, destination, options)));
@@ -204,7 +206,8 @@ namespace Microsoft.CodeAnalysis.CSharp.CodeGeneration
                     // If one accessor is readonly and the other one is not,
                     // the event is malformed and cannot be properly displayed.
                     // See https://github.com/dotnet/roslyn/issues/34213
-                    if (@event.AddMethod?.IsReadOnly == true)
+                    // Don't show the readonly modifier if the containing type is already readonly
+                    if (@event.AddMethod?.IsReadOnly == true && !@event.ContainingType.IsReadOnly)
                     {
                         tokens.Add(SyntaxFactory.Token(SyntaxKind.ReadOnlyKeyword));
                     }
